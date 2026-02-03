@@ -20,8 +20,18 @@ const SharedNotesPage = () => {
   const fetchSharedNotes = async () => {
     try {
       setLoading(true);
-      const response = await notesAPI.getShared();
-      setSharedNotes(response.data || []);
+      const response = await notesAPI.getSharedNotes()
+      // Transform the nested note structure into a flat structure
+      const transformedNotes = (response.data || []).map(item => ({
+        id: item.note.id,
+        title: item.note.title,
+        content: item.note.content || '',
+        updatedAt: item.note.updatedAt,
+        owner: item.note.owner,
+        permission: item.permission,
+        sharedNoteId: item.id
+      }));
+      setSharedNotes(transformedNotes);
     } catch (error) {
       toast.error('Failed to fetch shared notes');
       console.error('Error fetching shared notes:', error);
@@ -128,14 +138,14 @@ const SharedNotesPage = () => {
                 
                 <div className="flex items-center justify-between text-xs text-secondary-500">
                   <span>
-                    {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
+                    {note.updatedAt ? formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true }) : 'Unknown date'}
                   </span>
                   <div className="flex items-center space-x-1">
                     <span className="badge badge-secondary">
                       {note.permission || 'VIEWER'}
                     </span>
                     <span>
-                      {note.content.length} characters
+                      {note.content?.length || 0} characters
                     </span>
                   </div>
                 </div>

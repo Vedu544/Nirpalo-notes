@@ -38,7 +38,7 @@ const DashboardLayout = () => {
   };
 
   return (
-    <div className="min-h-screen bg-secondary-50">
+    <div className="flex h-screen bg-secondary-50">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div
@@ -51,7 +51,7 @@ const DashboardLayout = () => {
 
       {/* Sidebar */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0
+        fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-auto
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex items-center justify-between h-16 px-6 border-b border-secondary-200">
@@ -64,7 +64,7 @@ const DashboardLayout = () => {
           </button>
         </div>
 
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-[calc(100vh-4rem)]">
           {/* User info */}
           <div className="p-6 border-b border-secondary-200">
             <div className="flex items-center space-x-3">
@@ -85,7 +85,7 @@ const DashboardLayout = () => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
+          <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {/* New Note Button */}
             <Button
               onClick={() => {
@@ -158,35 +158,19 @@ const DashboardLayout = () => {
       </div>
 
       {/* Main content */}
-      <div className="lg:ml-64">
-        {/* Top bar */}
-        <header className="bg-white shadow-sm border-b border-secondary-200">
-          <div className="px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden"
-              >
-                <Menu className="w-6 h-6 text-secondary-500" />
-              </button>
-
-              <div className="flex items-center space-x-4">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  icon={Plus}
-                  iconPosition="left"
-                  onClick={() => navigate('/dashboard/new')}
-                >
-                  New Note
-                </Button>
-              </div>
-            </div>
-          </div>
-        </header>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top bar for mobile */}
+        <div className="lg:hidden h-16 bg-white border-b border-secondary-200 flex items-center px-4">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="text-secondary-600"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
 
         {/* Page content */}
-        <main className="flex-1">
+        <main className="flex-1 overflow-auto">
           <div className="py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <Outlet />

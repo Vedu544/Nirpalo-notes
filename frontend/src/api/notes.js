@@ -6,6 +6,10 @@ export const notesAPI = {
     return await api.get('/note');
   },
 
+  getSharedNotes: async () => {
+    return await api.get('/share/shared-with-me');
+  },
+
   // Get single note by ID
   getById: async (noteId) => {
     return await api.get(`/note/${noteId}`);
@@ -16,6 +20,7 @@ export const notesAPI = {
     return await api.post('/note/create', noteData);
   },
 
+  
   // Update note
   update: async (noteId, noteData) => {
     return await api.put(`/note/${noteId}`, noteData);
