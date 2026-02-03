@@ -29,31 +29,51 @@ export const createNote = async ({ title, content, ownerId }) => {
 };
 
 export const updateNote = async ({ noteId, ownerId, title, content }) => {
-  const note = await prisma.note.updateMany({
-    where: {
-      id: noteId,
-      ownerId
-    },
-    data: {
-      title,
-      content
-    }
+  // Check if user is the owner
+  const note = await prisma.note.findFirst({
+    where: { id: noteId }
   });
 
-  if (note.count === 0) {
-    throw new Error("Note not found or access denied");
+  if (!note) {
+    throw new Error("NOTE_NOT_FOUND");
   }
 
-  // 🔥 Auto-log the UPDATE activity
+  // If not owner, check if they're a collaborator with EDITOR permission
+  if (note.ownerId !== ownerId) {
+    const collaborator = await prisma.noteCollaborator.findFirst({
+      where: {
+        noteId,
+        userId: ownerId,
+        permission: "EDITOR" // Only EDITOR can update
+      }
+    });
+
+    if (!collaborator) {
+      throw new Error("PERMISSION_DENIED");
+    }
+  }
+
+  // Now update the note
+  const result = await prisma.note.update({
+    where: { id: noteId },
+    data: { title, content }
+  });
+
+  // Log the activity
   await createActivity({
     userId: ownerId,
     noteId,
     action: "UPDATE"
   });
 
-  return note;
-};
+  // Emit real-time event
+  emitToNote(noteId, "note-updated", {
+    note: result,
+    updatedBy: ownerId
+  });
 
+  return result;
+};
 export const getNotes = async (ownerId) => {
   return await prisma.note.findMany({
     where: { ownerId },

@@ -1,5 +1,22 @@
 import prisma from "../config/db.js";
 
+// Get all users (except current user) for sharing
+export const getAllUsers = async (currentUserId) => {
+  return await prisma.user.findMany({
+    where: {
+      id: { not: currentUserId } // Exclude current user
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true
+    },
+    orderBy: {
+      name: "asc" // Sort by name
+    }
+  });
+};
+
 // Get public note by share token (for read-only links)
 export const getPublicNoteByToken = async (token) => {
   const shareLink = await prisma.shareLink.findUnique({
@@ -22,11 +39,9 @@ export const getPublicNoteByToken = async (token) => {
       }
     }
   });
-
   if (!shareLink) {
     throw new Error("Invalid or expired share link");
   }
-
   return shareLink.note;
 };
 
@@ -74,11 +89,9 @@ export const getNoteCollaborators = async (noteId, userId) => {
       ]
     }
   });
-
   if (!note) {
     throw new Error("Note not found or access denied");
   }
-
   return await prisma.noteCollaborator.findMany({
     where: { noteId },
     include: {
@@ -87,6 +100,12 @@ export const getNoteCollaborators = async (noteId, userId) => {
           id: true,
           name: true,
           email: true
+        }
+      },
+      note: {
+        select: {
+          id: true,
+          title: true
         }
       }
     }
@@ -102,11 +121,9 @@ export const removeCollaborator = async (noteId, ownerId, collaboratorUserId) =>
       ownerId
     }
   });
-
   if (!note) {
     throw new Error("Note not found or access denied");
   }
-
   // Remove collaborator
   const result = await prisma.noteCollaborator.deleteMany({
     where: {
@@ -114,16 +131,19 @@ export const removeCollaborator = async (noteId, ownerId, collaboratorUserId) =>
       userId: collaboratorUserId
     }
   });
-
   if (result.count === 0) {
     throw new Error("Collaborator not found");
   }
-
   return result;
 };
 
-// Update collaborator permission (bonus feature)
-export const updateCollaboratorPermission = async (noteId, ownerId, collaboratorUserId, permission) => {
+// Update collaborator permission (EDITOR <-> VIEWER)
+export const updateCollaboratorPermission = async (
+  noteId,
+  ownerId,
+  collaboratorUserId,
+  permission
+) => {
   // Verify ownership
   const note = await prisma.note.findFirst({
     where: {
@@ -131,16 +151,13 @@ export const updateCollaboratorPermission = async (noteId, ownerId, collaborator
       ownerId
     }
   });
-
   if (!note) {
     throw new Error("Note not found or access denied");
   }
-
   // Validate permission
-  if (!['EDITOR', 'VIEWER'].includes(permission)) {
+  if (!["EDITOR", "VIEWER"].includes(permission)) {
     throw new Error("Invalid permission. Must be EDITOR or VIEWER");
   }
-
   // Update permission
   const updated = await prisma.noteCollaborator.updateMany({
     where: {
@@ -151,11 +168,9 @@ export const updateCollaboratorPermission = async (noteId, ownerId, collaborator
       permission
     }
   });
-
   if (updated.count === 0) {
     throw new Error("Collaborator not found");
   }
-
   return await prisma.noteCollaborator.findFirst({
     where: {
       noteId,

@@ -1,33 +1,43 @@
 import api from './axios.js';
 
 export const shareAPI = {
-  // Create shareable link for note
-  createLink: async (noteId) => {
-    return await api.post('/share/create', { noteId });
+  // Get all users (except current user) for sharing
+  getAllUsers: async () => {
+    return await api.get('/share/users/all');
   },
 
-  // Get note by share token (public access)
-  getByToken: async (token) => {
-    return await api.get(`/share/${token}`);
+  // Share a note with a user
+  shareNote: async (noteId, sharedWithUserId, permission = 'VIEWER') => {
+    return await api.post(`/share/${noteId}`, {
+      sharedWithUserId,
+      permission
+    });
   },
 
-  // Get all share links for user's notes
-  getUserLinks: async () => {
-    return await api.get('/share/links');
+  // Get all notes shared with current user
+  getSharedNotes: async () => {
+    return await api.get('/share/shared-with-me');
   },
 
-  // Delete share link
-  deleteLink: async (shareId) => {
-    return await api.delete(`/share/${shareId}`);
+  // Get all collaborators of a note
+  getCollaborators: async (noteId) => {
+    return await api.get(`/share/${noteId}/collaborators`);
   },
 
-  // Update share link settings
-  updateLink: async (shareId, settings) => {
-    return await api.put(`/share/${shareId}`, settings);
+  // Remove a collaborator from a note
+  removeCollaborator: async (noteId, userId) => {
+    return await api.delete(`/share/${noteId}/collaborator/${userId}`);
   },
 
-  // Get share link analytics
-  getLinkStats: async (shareId) => {
-    return await api.get(`/share/${shareId}/stats`);
+  // Update collaborator permission
+  updatePermission: async (noteId, userId, permission) => {
+    return await api.patch(`/share/${noteId}/collaborator/${userId}`, {
+      permission
+    });
   },
+
+  // Get public note by share token (NO authentication)
+  getPublicNote: async (token) => {
+    return await api.get(`/share/public/${token}`);
+  }
 };

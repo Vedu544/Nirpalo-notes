@@ -1,17 +1,38 @@
 import { shareNoteService } from "../services/notes.service.js";
-import { 
-  getPublicNoteByToken, 
+import {
+  getAllUsers,
+  getPublicNoteByToken,
   getSharedNotes,
   getNoteCollaborators,
   removeCollaborator,
   updateCollaboratorPermission
 } from "../services/share.service.js";
 
+// Get all users (except current user) for sharing
+export const getAllUsersController = async (req, res, next) => {
+  try {
+    const users = await getAllUsers(req.user.id);
+    res.status(200).json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // Share a note with another user (add collaborator)
 export const shareNoteController = async (req, res, next) => {
   try {
     const { sharedWithUserId, permission } = req.body;
     const { noteId } = req.params;
+
+    if (!sharedWithUserId) {
+      return res.status(400).json({
+        success: false,
+        message: "sharedWithUserId is required"
+      });
+    }
 
     // Default permission to VIEWER if not specified
     const result = await shareNoteService({
@@ -35,9 +56,7 @@ export const shareNoteController = async (req, res, next) => {
 export const getPublicNoteController = async (req, res, next) => {
   try {
     const { token } = req.params;
-
     const note = await getPublicNoteByToken(token);
-
     res.status(200).json({
       success: true,
       data: note
@@ -51,7 +70,6 @@ export const getPublicNoteController = async (req, res, next) => {
 export const getSharedNotesController = async (req, res, next) => {
   try {
     const sharedNotes = await getSharedNotes(req.user.id);
-
     res.status(200).json({
       success: true,
       data: sharedNotes
@@ -65,9 +83,8 @@ export const getSharedNotesController = async (req, res, next) => {
 export const getNoteCollaboratorsController = async (req, res, next) => {
   try {
     const { noteId } = req.params;
-    
-    const collaborators = await getNoteCollaborators(noteId, req.user.id);
 
+    const collaborators = await getNoteCollaborators(noteId, req.user.id);
     res.status(200).json({
       success: true,
       data: collaborators
@@ -81,9 +98,7 @@ export const getNoteCollaboratorsController = async (req, res, next) => {
 export const removeCollaboratorController = async (req, res, next) => {
   try {
     const { noteId, userId } = req.params;
-
     await removeCollaborator(noteId, req.user.id, userId);
-
     res.status(200).json({
       success: true,
       message: "Collaborator removed successfully"
@@ -99,13 +114,19 @@ export const updateCollaboratorPermissionController = async (req, res, next) => 
     const { noteId, userId } = req.params;
     const { permission } = req.body;
 
+    if (!permission) {
+      return res.status(400).json({
+        success: false,
+        message: "permission is required"
+      });
+    }
+
     const updated = await updateCollaboratorPermission(
-      noteId, 
-      req.user.id, 
-      userId, 
+      noteId,
+      req.user.id,
+      userId,
       permission
     );
-
     res.status(200).json({
       success: true,
       message: "Permission updated successfully",
