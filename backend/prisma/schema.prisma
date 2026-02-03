@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+/* ===================== ENUMS ===================== */
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum NotePermission {
+  EDITOR
+  VIEWER
+}
+
+enum ActivityAction {
+  CREATE
+  UPDATE
+  DELETE
+  SHARE
+}
+
+/* ===================== MODELS ===================== */
+
+model User {
+  id           String            @id @default(uuid())
+  name         String
+  email        String            @unique
+  password     String
+  role         UserRole           @default(USER)
+  createdAt   DateTime           @default(now())
+
+  notes        Note[]             @relation("OwnerNotes")
+  collaborators NoteCollaborator[]
+  activities   ActivityLog[]
+
+  @@map("users")
+}
+
+model Note {
+  id          String            @id @default(uuid())
+  title       String
+  content     String
+  ownerId    String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  owner       User              @relation("OwnerNotes", fields: [ownerId], references: [id])
+  collaborators NoteCollaborator[]
+  activities  ActivityLog[]
+  shareLink   ShareLink?
+
+  @@map("notes")
+}
+
+model NoteCollaborator {
+  id         String          @id @default(uuid())
+  noteId     String
+  userId     String
+  permission NotePermission
+
+  note       Note            @relation(fields: [noteId], references: [id])
+  user       User            @relation(fields: [userId], references: [id])
+
+  @@unique([noteId, userId])
+  @@map("note_collaborators")
+}
+
+model ActivityLog {
+  id        String          @id @default(uuid())
+  action    ActivityAction
+  userId    String
+  noteId    String
+  createdAt DateTime        @default(now())
+
+  user      User            @relation(fields: [userId], references: [id])
+  note      Note            @relation(fields: [noteId], references: [id])
+
+  @@map("activity_logs")
+}
+
+model ShareLink {
+  id        String          @id @default(uuid())
+  noteId    String          @unique
+  token     String          @unique
+  createdAt DateTime        @default(now())
+
+  note      Note            @relation(fields: [noteId], references: [id])
+
+  @@map("share_links")
+}

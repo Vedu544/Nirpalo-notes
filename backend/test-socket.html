@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Socket.io Test</title>
+    <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .section { margin: 15px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        input, textarea, button { margin: 5px; padding: 8px; }
+        #token { width: 400px; }
+        #noteId { width: 200px; }
+        #content { width: 100%; height: 100px; }
+        #log { background: #f5f5f5; padding: 10px; height: 300px; overflow-y: scroll; font-family: monospace; }
+        button { background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Socket.io Real-time Collaboration Test</h1>
+    
+    <div class="section">
+        <h3>1. Get JWT Token</h3>
+        <p><strong>First, get your token via Postman:</strong></p>
+        <ul>
+            <li>POST <code>http://localhost:5000/api/auth/login</code></li>
+            <li>Body: <code>{"email": "your@email.com", "password": "yourpassword"}</code></li>
+            <li>Copy the <code>token</code> from the response</li>
+        </ul>
+    </div>
+    
+    <div class="section">
+        <h3>2. Connect to Socket</h3>
+        <input type="text" id="token" placeholder="Paste your JWT token here">
+        <button onclick="connect()">Connect</button>
+        <div id="connectionStatus"></div>
+    </div>
+    
+    <div class="section">
+        <h3>3. Create/Join Note</h3>
+        <input type="text" id="noteId" placeholder="Note ID (create via Postman first)">
+        <button onclick="joinNote()">Join Note</button>
+        <button onclick="leaveNote()">Leave Note</button>
+        <p><em>To create a note: POST <code>/api/note/create</code> with title and content</em></p>
+    </div>
+    
+    <div class="section">
+        <h3>4. Edit Note (Real-time)</h3>
+        <textarea id="content" placeholder="Type here to test real-time collaboration..."></textarea>
+        <button onclick="updateNote()">Update Note</button>
+    </div>
+    
+    <div class="section">
+        <h3>5. Events Log</h3>
+        <div id="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        let socket = null;
+        
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'red' : type === 'success' ? 'green' : 'black';
+            
+            logDiv.innerHTML += `<div style="color: ${color}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function connect() {
+            const token = document.getElementById('token').value.trim();
+            
+            if (!token) {
+                log('Please enter a JWT token', 'error');
+                return;
+            }
+            
+            document.getElementById('connectionStatus').innerHTML = 'Connecting...';
+            
+            socket = io('http://localhost:5000', {
+                auth: {
+                    token: token
+                }
+            });
+            
+            socket.on('connect', () => {
+                log('Connected to server successfully!', 'success');
+                document.getElementById('connectionStatus').innerHTML = '<span style="color: green">✓ Connected</span>';
+            });
+            
+            socket.on('connect_error', (error) => {
+                log('Connection failed: ' + error.message, 'error');
+                document.getElementById('connectionStatus').innerHTML = '<span style="color: red">✗ Connection failed</span>';
+            });
+            
+            socket.on('error', (data) => {
+                log('Socket error: ' + data, 'error');
+            });
+            
+            socket.on('active-users', (users) => {
+                log('Active users: ' + JSON.stringify(users, null, 2));
+            });
+            
+            socket.on('note-updated', (data) => {
+                log('Note updated by ' + data.updatedBy.name + ': ' + JSON.stringify(data));
+                document.getElementById('content').value = data.content;
+            });
+            
+            socket.on('user-joined', (data) => {
+                log('User joined: ' + data.name, 'success');
+            });
+            
+            socket.on('user-left', (data) => {
+                log('User left: ' + data.name);
+            });
+            
+            socket.on('conflict', (data) => {
+                log('⚠️ Conflict detected! Current content may be different', 'error');
+                document.getElementById('content').value = data.currentContent;
+            });
+            
+            socket.on('update-confirmed', (data) => {
+                log('✓ Update confirmed. Version: ' + data.version, 'success');
+            });
+            
+            socket.on('note-created', (data) => {
+                log('New note created: ' + data.note.title, 'success');
+            });
+            
+            socket.on('note-deleted', (data) => {
+                log('Note deleted: ' + data.noteId, 'error');
+            });
+        }
+        
+        function joinNote() {
+            const noteId = document.getElementById('noteId').value.trim();
+            
+            if (!noteId) {
+                log('Please enter a note ID', 'error');
+                return;
+            }
+            
+            if (!socket) {
+                log('Please connect first', 'error');
+                return;
+            }
+            
+            socket.emit('join-note', noteId);
+            log('Joined note: ' + noteId);
+        }
+        
+        function leaveNote() {
+            const noteId = document.getElementById('noteId').value.trim();
+            
+            if (!socket || !noteId) {
+                log('Please connect and enter note ID', 'error');
+                return;
+            }
+            
+            socket.emit('leave-note', noteId);
+            log('Left note: ' + noteId);
+        }
+        
+        function updateNote() {
+            const noteId = document.getElementById('noteId').value.trim();
+            const content = document.getElementById('content').value;
+            
+            if (!socket || !noteId) {
+                log('Please connect and join a note first', 'error');
+                return;
+            }
+            
+            // In real app, you'd get the actual version from the note
+            const version = new Date().toISOString();
+            
+            socket.emit('note-update', {
+                noteId: noteId,
+                content: content,
+                version: version
+            });
+            
+            log('Sent update for note: ' + noteId);
+        }
+        
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+        
+        // Auto-update when typing (simulates real-time editing)
+        let updateTimeout;
+        document.getElementById('content').addEventListener('input', function() {
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                if (socket && document.getElementById('noteId').value) {
+                    updateNote();
+                }
+            }, 500); // Wait 500ms after typing stops
+        });
+    </script>
+</body>
+</html>
