@@ -1,6 +1,7 @@
 import express from "express";
 import {
-  getAllUsersController,
+  generateShareLinkController,
+  getAllUsersForSharingController,
   shareNoteController,
   getPublicNoteController,
   getSharedNotesController,
@@ -18,10 +19,15 @@ router.get("/public/:token", getPublicNoteController);
 // Protected routes - authentication required
 router.use(authenticate);
 
-// Get all users (for sharing feature)
-router.get("/users/all", getAllUsersController);
+// Generate a public share link for a note
+router.post("/:noteId/generate-link", generateShareLinkController);
+
+// Get all users for sharing (except current user)
+// SIMPLE - just exclude current user, no other filtering
+router.get("/users/all", getAllUsersForSharingController);
 
 // Share a note with another user
+// VALIDATION happens here - checks if already shared
 router.post("/:noteId", shareNoteController);
 
 // Get notes shared with current user

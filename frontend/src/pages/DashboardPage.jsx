@@ -1,42 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Share2, Search, FileText, X } from 'lucide-react';
+import { Plus, Search, FileText } from 'lucide-react';
 import { notesAPI } from '../api';
+import { shareAPI } from '../api';
 import toast from 'react-hot-toast';
 import Button from '../components/common/Button';
-import Card from '../components/common/Card';
 import LoadingSpinner from '../components/common/LoadingSpinner';
-import { formatDistanceToNow } from 'date-fns';
+import NoteViewDialog from '../components/NoteViewDialoug';
+import CreateNoteDialog from '../components/dashboard/CreateNoteDialog';
+import EditNoteDialog from '../components/dashboard/EditNoteDialog';
+import ShareNoteDialog from '../components/dashboard/ShareNoteDialog';
+import NoteCard from '../components/dashboard/Note';
 
 const DashboardPage = () => {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredNotes, setFilteredNotes] = useState([]);
-  
-  // Create Dialog States
+
+  // Dialog states
+  const [showViewDialog, setShowViewDialog] = useState(false);
+  const [viewingNote, setViewingNote] = useState(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [formData, setFormData] = useState({ title: '', content: '' });
-  const [isCreating, setIsCreating] = useState(false);
-  
-  // Edit Dialog States
   const [showEditDialog, setShowEditDialog] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+
+  // Form states
+  const [createFormData, setCreateFormData] = useState({ title: '', content: '' });
   const [editingNote, setEditingNote] = useState(null);
+  const [sharingNote, setSharingNote] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedPermission, setSelectedPermission] = useState('VIEWER');
+
+  // Loading states
+  const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     fetchNotes();
   }, []);
 
   useEffect(() => {
-    if (searchQuery) {
-      const filtered = notes.filter(note =>
-        note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        note.content.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredNotes(filtered);
-    } else {
-      setFilteredNotes(notes);
-    }
+    setFilteredNotes(
+      searchQuery
+        ? notes.filter(note =>
+            note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            note.content.toLowerCase().includes(searchQuery.toLowerCase())
+          )
+        : notes
+    );
   }, [searchQuery, notes]);
 
   const fetchNotes = async () => {
@@ -44,7 +58,6 @@ const DashboardPage = () => {
       setLoading(true);
       const response = await notesAPI.getAll();
       setNotes(response.data || []);
-      setFilteredNotes(response.data || []);
     } catch (error) {
       toast.error('Failed to fetch notes');
       console.error('Error fetching notes:', error);
@@ -53,94 +66,39 @@ const DashboardPage = () => {
     }
   };
 
-  // ==================== DELETE HANDLERS ====================
-  const handleDeleteNote = async (noteId) => {
-    if (window.confirm('Are you sure you want to delete this note?')) {
-      try {
-        await notesAPI.delete(noteId);
-        setNotes(notes.filter(note => note.id !== noteId));
-        toast.success('Note deleted successfully');
-      } catch (error) {
-        toast.error('Failed to delete note');
-        console.error('Error deleting note:', error);
-      }
-    }
+  // View handlers
+  const handleViewNote = (note) => {
+    setViewingNote(note);
+    setShowViewDialog(true);
   };
 
-  // ==================== SHARE HANDLERS ====================
-  const handleShareNote = async (noteId) => {
-    try {
-      const shareUrl = `${window.location.origin}/share/${noteId}`;
-      await navigator.clipboard.writeText(shareUrl);
-      toast.success('Share link copied to clipboard!');
-    } catch (error) {
-      toast.error('Failed to create share link');
-      console.error('Error sharing note:', error);
-    }
-  };
-
-  // ==================== CREATE HANDLERS ====================
-  const handleCreateNoteClick = () => {
-    setShowCreateDialog(true);
-    setFormData({ title: '', content: '' });
-  };
-
-  const handleCloseCreateDialog = () => {
-    setShowCreateDialog(false);
-    setFormData({ title: '', content: '' });
-  };
-
-  const handleFormChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
+  // Create handlers
   const handleCreateNote = async () => {
-    if (!formData.title.trim()) {
+    if (!createFormData.title.trim()) {
       toast.error('Please enter a title');
       return;
     }
-
     try {
       setIsCreating(true);
-      const response = await notesAPI.create({
-        title: formData.title,
-        content: formData.content
-      });
-
+      const response = await notesAPI.create(createFormData);
       if (response.data) {
         setNotes([response.data, ...notes]);
         toast.success('Note created successfully');
-        handleCloseCreateDialog();
+        setShowCreateDialog(false);
+        setCreateFormData({ title: '', content: '' });
       }
     } catch (error) {
       toast.error('Failed to create note');
-      console.error('Error creating note:', error);
     } finally {
       setIsCreating(false);
     }
   };
 
-  // ==================== EDIT HANDLERS ====================
-  const handleEditNote = (note) => {
+  // Edit handlers
+  const handleEditNote = (note, e) => {
+    e.stopPropagation();
     setEditingNote({ ...note });
     setShowEditDialog(true);
-  };
-
-  const handleCloseEditDialog = () => {
-    setShowEditDialog(false);
-    setEditingNote(null);
-  };
-
-  const handleEditFormChange = (e) => {
-    const { name, value } = e.target;
-    setEditingNote(prev => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
   const handleUpdateNote = async () => {
@@ -148,37 +106,94 @@ const DashboardPage = () => {
       toast.error('Please enter a title');
       return;
     }
-
     try {
       setIsEditing(true);
       const response = await notesAPI.update(editingNote.id, {
         title: editingNote.title,
         content: editingNote.content
       });
-
       if (response.data) {
-        // Update the note in the list
         setNotes(notes.map(n => n.id === editingNote.id ? response.data : n));
         toast.success('Note updated successfully');
-        handleCloseEditDialog();
+        setShowEditDialog(false);
       }
     } catch (error) {
-      if (error.response?.status === 403) {
-        toast.error("You don't have permission to edit this note");
-      } else if (error.response?.status === 404) {
-        toast.error('Note not found');
-      } else {
-        toast.error('Failed to update note');
-      }
-      console.error('Error updating note:', error);
+      const message = error.response?.status === 403
+        ? "You don't have permission to edit this note"
+        : 'Failed to update note';
+      toast.error(message);
     } finally {
       setIsEditing(false);
     }
   };
 
-  if (loading) {
-    return <LoadingSpinner text="Loading your notes..." />;
-  }
+  // Delete handler
+  const handleDeleteNote = async (noteId, e) => {
+    e.stopPropagation();
+    if (!window.confirm('Are you sure you want to delete this note?')) return;
+    try {
+      await notesAPI.delete(noteId);
+      setNotes(notes.filter(note => note.id !== noteId));
+      toast.success('Note deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete note');
+    }
+  };
+
+  // Share handlers
+  const handleGetShareLink = async (noteId, e) => {
+    e.stopPropagation();
+    try {
+      const response = await shareAPI.generateShareLink(noteId);
+      if (response.data?.shareUrl) {
+        await navigator.clipboard.writeText(response.data.shareUrl);
+        toast.success('Public share link copied to clipboard!');
+      }
+    } catch (error) {
+      toast.error('Failed to generate share link');
+    }
+  };
+
+  const handleOpenShareDialog = async (note, e) => {
+    e.stopPropagation();
+    setSharingNote(note);
+    setSelectedUser(null);
+    setSelectedPermission('VIEWER');
+    setShowShareDialog(true);
+    
+    try {
+      setIsLoadingUsers(true);
+      const response = await shareAPI.getAllUsers();
+      setAllUsers(response.data || []);
+    } catch (error) {
+      toast.error('Failed to load users');
+      setShowShareDialog(false);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const handleShareNote = async () => {
+    if (!selectedUser) {
+      toast.error('Please select a user');
+      return;
+    }
+    try {
+      setIsSharing(true);
+      await shareAPI.shareNote(sharingNote.id, selectedUser.id, selectedPermission);
+      toast.success(`Note shared with ${selectedUser.name}!`);
+      setShowShareDialog(false);
+    } catch (error) {
+      const message = error.response?.status === 400
+        ? '⚠️ This note is already shared with that person'
+        : 'Failed to share note';
+      toast.error(message);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  if (loading) return <LoadingSpinner text="Loading your notes..." />;
 
   return (
     <div className="space-y-6">
@@ -188,7 +203,7 @@ const DashboardPage = () => {
         <p className="page-subtitle">Manage and organize your notes</p>
       </div>
 
-      {/* Search and Actions */}
+      {/* Search and Create */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-secondary-400 w-5 h-5" />
@@ -200,9 +215,8 @@ const DashboardPage = () => {
             className="form-input pl-10 w-full"
           />
         </div>
-        
         <Button
-          onClick={handleCreateNoteClick}
+          onClick={() => setShowCreateDialog(true)}
           icon={Plus}
           iconPosition="left"
         >
@@ -224,7 +238,7 @@ const DashboardPage = () => {
             }
           </p>
           {!searchQuery && (
-            <Button onClick={handleCreateNoteClick} icon={Plus} iconPosition="left">
+            <Button onClick={() => setShowCreateDialog(true)} icon={Plus} iconPosition="left">
               Create Note
             </Button>
           )}
@@ -232,212 +246,60 @@ const DashboardPage = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredNotes.map((note) => (
-            <Card key={note.id} hover className="group">
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="text-lg font-semibold text-secondary-900 line-clamp-2">
-                    {note.title}
-                  </h3>
-                  <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditNote(note)}
-                      className="p-1"
-                      title="Edit note"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleShareNote(note.id)}
-                      className="p-1"
-                      title="Share note"
-                    >
-                      <Share2 className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteNote(note.id)}
-                      className="p-1 text-error-600 hover:text-error-700"
-                      title="Delete note"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                <p className="text-secondary-600 text-sm mb-4 line-clamp-3">
-                  {note.content || 'No content'}
-                </p>
-                
-                <div className="flex items-center justify-between text-xs text-secondary-500">
-                  <span>
-                    {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
-                  </span>
-                  <span>
-                    {note.content.length} characters
-                  </span>
-                </div>
-              </div>
-            </Card>
+            <NoteCard
+              key={note.id}
+              note={note}
+              onView={handleViewNote}
+              onEdit={handleEditNote}
+              onDelete={handleDeleteNote}
+              onGetShareLink={handleGetShareLink}
+              onShareWithUsers={handleOpenShareDialog}
+            />
           ))}
         </div>
       )}
 
-      {/* ==================== CREATE NOTE DIALOG ==================== */}
-      {showCreateDialog && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            {/* Dialog Header */}
-            <div className="flex items-center justify-between p-6 border-b border-secondary-200">
-              <h2 className="text-xl font-semibold text-secondary-900">Create New Note</h2>
-              <button
-                onClick={handleCloseCreateDialog}
-                className="text-secondary-400 hover:text-secondary-600 transition-colors"
-                disabled={isCreating}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* Dialogs */}
+      <NoteViewDialog 
+        isOpen={showViewDialog}
+        onClose={() => setShowViewDialog(false)}
+        note={viewingNote}
+      />
 
-            {/* Dialog Content */}
-            <div className="p-6 space-y-4">
-              {/* Title Input */}
-              <div>
-                <label htmlFor="title" className="block text-sm font-medium text-secondary-700 mb-2">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  id="title"
-                  name="title"
-                  placeholder="Enter note title..."
-                  value={formData.title}
-                  onChange={handleFormChange}
-                  className="form-input w-full"
-                  autoFocus
-                  disabled={isCreating}
-                />
-              </div>
+      <CreateNoteDialog
+        isOpen={showCreateDialog}
+        onClose={() => {
+          setShowCreateDialog(false);
+          setCreateFormData({ title: '', content: '' });
+        }}
+        formData={createFormData}
+        onFormChange={(e) => setCreateFormData({ ...createFormData, [e.target.name]: e.target.value })}
+        onSubmit={handleCreateNote}
+        isLoading={isCreating}
+      />
 
-              {/* Content Textarea */}
-              <div>
-                <label htmlFor="content" className="block text-sm font-medium text-secondary-700 mb-2">
-                  Content
-                </label>
-                <textarea
-                  id="content"
-                  name="content"
-                  placeholder="Enter note content..."
-                  value={formData.content}
-                  onChange={handleFormChange}
-                  rows="6"
-                  className="form-input w-full resize-none"
-                  disabled={isCreating}
-                />
-              </div>
-            </div>
+      <EditNoteDialog
+        isOpen={showEditDialog}
+        note={editingNote}
+        onClose={() => setShowEditDialog(false)}
+        onFormChange={(e) => setEditingNote({ ...editingNote, [e.target.name]: e.target.value })}
+        onSubmit={handleUpdateNote}
+        isLoading={isEditing}
+      />
 
-            {/* Dialog Footer */}
-            <div className="flex items-center gap-3 p-6 border-t border-secondary-200">
-              <Button
-                variant="secondary"
-                onClick={handleCloseCreateDialog}
-                disabled={isCreating}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCreateNote}
-                disabled={isCreating || !formData.title.trim()}
-                className="flex-1"
-              >
-                {isCreating ? 'Creating...' : 'Create'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ==================== EDIT NOTE DIALOG ==================== */}
-      {showEditDialog && editingNote && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            {/* Dialog Header */}
-            <div className="flex items-center justify-between p-6 border-b border-secondary-200">
-              <h2 className="text-xl font-semibold text-secondary-900">Edit Note</h2>
-              <button
-                onClick={handleCloseEditDialog}
-                className="text-secondary-400 hover:text-secondary-600 transition-colors"
-                disabled={isEditing}
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Dialog Content */}
-            <div className="p-6 space-y-4">
-              {/* Title Input */}
-              <div>
-                <label htmlFor="edit-title" className="block text-sm font-medium text-secondary-700 mb-2">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  id="edit-title"
-                  name="title"
-                  placeholder="Enter note title..."
-                  value={editingNote.title}
-                  onChange={handleEditFormChange}
-                  className="form-input w-full"
-                  disabled={isEditing}
-                  autoFocus
-                />
-              </div>
-
-              {/* Content Textarea */}
-              <div>
-                <label htmlFor="edit-content" className="block text-sm font-medium text-secondary-700 mb-2">
-                  Content
-                </label>
-                <textarea
-                  id="edit-content"
-                  name="content"
-                  placeholder="Enter note content..."
-                  value={editingNote.content}
-                  onChange={handleEditFormChange}
-                  rows="6"
-                  className="form-input w-full resize-none"
-                  disabled={isEditing}
-                />
-              </div>
-            </div>
-
-            {/* Dialog Footer */}
-            <div className="flex items-center gap-3 p-6 border-t border-secondary-200">
-              <Button
-                variant="secondary"
-                onClick={handleCloseEditDialog}
-                disabled={isEditing}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleUpdateNote}
-                disabled={isEditing || !editingNote.title.trim()}
-                className="flex-1"
-              >
-                {isEditing ? 'Saving...' : 'Save'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ShareNoteDialog
+        isOpen={showShareDialog}
+        note={sharingNote}
+        onClose={() => setShowShareDialog(false)}
+        allUsers={allUsers}
+        selectedUser={selectedUser}
+        selectedPermission={selectedPermission}
+        onSelectUser={setSelectedUser}
+        onPermissionChange={setSelectedPermission}
+        onShare={handleShareNote}
+        isLoadingUsers={isLoadingUsers}
+        isSharing={isSharing}
+      />
     </div>
   );
 };

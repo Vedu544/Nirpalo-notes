@@ -12,7 +12,6 @@ export const createNoteController = async (req, res, next) => {
       ...req.body,
       ownerId: req.user.id
     });
-
     res.status(201).json({
       success: true,
       data: note
@@ -25,7 +24,6 @@ export const createNoteController = async (req, res, next) => {
 export const getNotesController = async (req, res, next) => {
   try {
     const notes = await getNotes(req.user.id);
-
     res.status(200).json({
       success: true,
       data: notes
@@ -38,12 +36,18 @@ export const getNotesController = async (req, res, next) => {
 export const deleteNoteController = async (req, res, next) => {
   try {
     await deleteNote(req.params.noteId, req.user.id);
-
     res.status(200).json({
       success: true,
-      message: "Note deleted"
+      message: "Note deleted successfully"
     });
   } catch (error) {
+    // Handle specific error messages
+    if (error.message === "NOTE_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Note not found or you don't have permission to delete it"
+      });
+    }
     next(error);
   }
 };

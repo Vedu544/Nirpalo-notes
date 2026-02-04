@@ -76,7 +76,7 @@ const RegisterForm = () => {
     const result = await register(registerData);
     
     if (result.success) {
-      navigate('/dashboard');
+      navigate('/login');
     }
   };
 

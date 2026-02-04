@@ -26,10 +26,8 @@ const DashboardLayout = () => {
 
   const navigation = [
     { name: 'My Notes', href: '/dashboard', icon: FileText },
-    { name: 'Search', href: '/dashboard/search', icon: Search },
     { name: 'Shared', href: '/dashboard/shared', icon: Users },
     { name: 'Activity', href: '/dashboard/activity', icon: Activity },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
 
   const handleLogout = () => {
@@ -87,18 +85,6 @@ const DashboardLayout = () => {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
             {/* New Note Button */}
-            <Button
-              onClick={() => {
-                navigate('/dashboard/new');
-                setSidebarOpen(false);
-              }}
-              className="w-full justify-start mb-4"
-              icon={Plus}
-              iconPosition="left"
-            >
-              New Note
-            </Button>
-
             {navigation.map((item) => {
               const isActive = location.pathname === item.href;
               return (

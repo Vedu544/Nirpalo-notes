@@ -11,26 +11,27 @@ import SharedNotesPage from './pages/SharedNotesPage';
 import ActivityPage from './pages/ActivityPage';
 import SettingsPage from './pages/SettingsPage';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import PublicSharePage from './pages/PublicSharePage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
-  
+
   return isAuthenticated ? children : <Navigate to="/login" replace />;
 };
 
 // Public Route Component (redirect if authenticated)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
-  
+
   return !isAuthenticated ? children : <Navigate to="/dashboard" replace />;
 };
 
@@ -39,26 +40,39 @@ function App() {
     <div className="App">
       <Routes>
         {/* Public Routes */}
-        <Route 
-          path="/login" 
+        <Route
+          path="/login"
           element={
             <PublicRoute>
               <LoginForm />
             </PublicRoute>
-          } 
+          }
         />
-        <Route 
-          path="/register" 
+         <Route
+          path="/"
+          element={
+            <PublicRoute>
+              <LoginForm />
+            </PublicRoute>
+          }
+        />
+
+        <Route
+          path="/register"
           element={
             <PublicRoute>
               <RegisterForm />
             </PublicRoute>
-          } 
+          }
         />
-        
+        <Route
+          path="/public/share/:token"
+          element={<PublicSharePage />}
+        />
+
         {/* Protected Routes */}
-        <Route 
-          path="/dashboard" 
+        <Route
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <DashboardLayout />
@@ -73,12 +87,9 @@ function App() {
           <Route path="activity" element={<ActivityPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
-        
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        
-        {/* Catch all route */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
+
+
       </Routes>
     </div>
   );

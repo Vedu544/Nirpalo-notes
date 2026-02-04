@@ -1,10 +1,55 @@
 import prisma from "../config/db.js";
+import crypto from "crypto";
 
-// Get all users (except current user) for sharing
-export const getAllUsers = async (currentUserId) => {
+// Generate a share link for a note
+export const generateShareLink = async (noteId, userId) => {
+  // Verify user owns the note
+  const note = await prisma.note.findFirst({
+    where: {
+      id: noteId,
+      ownerId: userId
+    }
+  });
+
+  if (!note) {
+    throw new Error("NOTE_NOT_FOUND");
+  }
+
+  // Check if share link already exists for this note
+  const existingLink = await prisma.shareLink.findFirst({
+    where: { noteId }
+  });
+
+  if (existingLink) {
+    // Return existing token instead of creating duplicate
+    return {
+      token: existingLink.token,
+      shareUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/public/share/${existingLink.token}`
+    };
+  }
+
+  // Generate new token
+  const token = crypto.randomBytes(32).toString('hex');
+
+  // Create share link
+  const shareLink = await prisma.shareLink.create({
+    data: {
+      noteId,
+      token
+    }
+  });
+
+  return {
+    token: shareLink.token,
+    shareUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/public/share/${shareLink.token}`
+  };
+};
+
+// Get all users (except current user) - SIMPLE, no exclusion of collaborators
+export const getAllUsersForSharing = async (currentUserId) => {
   return await prisma.user.findMany({
     where: {
-      id: { not: currentUserId } // Exclude current user
+      id: { not: currentUserId } // Only exclude current user
     },
     select: {
       id: true,
@@ -12,13 +57,14 @@ export const getAllUsers = async (currentUserId) => {
       email: true
     },
     orderBy: {
-      name: "asc" // Sort by name
+      name: "asc"
     }
   });
 };
 
-// Get public note by share token (for read-only links)
+// Get public note by share token - with better error handling
 export const getPublicNoteByToken = async (token) => {
+  // Find the share link
   const shareLink = await prisma.shareLink.findUnique({
     where: { token },
     include: {
@@ -31,6 +77,7 @@ export const getPublicNoteByToken = async (token) => {
           updatedAt: true,
           owner: {
             select: {
+              id: true,
               name: true,
               email: true
             }
@@ -39,9 +86,17 @@ export const getPublicNoteByToken = async (token) => {
       }
     }
   });
+
+  // If share link doesn't exist
   if (!shareLink) {
-    throw new Error("Invalid or expired share link");
+    throw new Error("INVALID_LINK");
   }
+
+  // If share link exists but note was deleted
+  if (!shareLink.note) {
+    throw new Error("NOTE_DELETED");
+  }
+
   return shareLink.note;
 };
 

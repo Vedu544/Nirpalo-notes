@@ -1,6 +1,8 @@
 import { shareNoteService } from "../services/notes.service.js";
+import prisma from "../config/db.js";
 import {
-  getAllUsers,
+  generateShareLink,
+  getAllUsersForSharing,
   getPublicNoteByToken,
   getSharedNotes,
   getNoteCollaborators,
@@ -8,10 +10,40 @@ import {
   updateCollaboratorPermission
 } from "../services/share.service.js";
 
-// Get all users (except current user) for sharing
-export const getAllUsersController = async (req, res, next) => {
+// Generate a public share link for a note
+export const generateShareLinkController = async (req, res, next) => {
   try {
-    const users = await getAllUsers(req.user.id);
+    const { noteId } = req.params;
+
+    if (!noteId) {
+      return res.status(400).json({
+        success: false,
+        message: "noteId is required"
+      });
+    }
+
+    const result = await generateShareLink(noteId, req.user.id);
+
+    res.status(200).json({
+      success: true,
+      message: "Share link generated successfully",
+      data: result
+    });
+  } catch (error) {
+    if (error.message === "NOTE_NOT_FOUND") {
+      return res.status(404).json({
+        success: false,
+        message: "Note not found or you don't have permission"
+      });
+    }
+    next(error);
+  }
+};
+
+// Get all users for sharing (except current user) - SIMPLE
+export const getAllUsersForSharingController = async (req, res, next) => {
+  try {
+    const users = await getAllUsersForSharing(req.user.id);
     res.status(200).json({
       success: true,
       data: users
@@ -22,6 +54,7 @@ export const getAllUsersController = async (req, res, next) => {
 };
 
 // Share a note with another user (add collaborator)
+// VALIDATION: Check if user already has access
 export const shareNoteController = async (req, res, next) => {
   try {
     const { sharedWithUserId, permission } = req.body;
@@ -31,6 +64,21 @@ export const shareNoteController = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: "sharedWithUserId is required"
+      });
+    }
+
+    // CHECK: Does this user already have access to this note?
+    const existingCollaborator = await prisma.noteCollaborator.findFirst({
+      where: {
+        noteId,
+        userId: sharedWithUserId
+      }
+    });
+
+    if (existingCollaborator) {
+      return res.status(400).json({
+        success: false,
+        message: "This note is already shared with that person"
       });
     }
 
@@ -53,6 +101,7 @@ export const shareNoteController = async (req, res, next) => {
 };
 
 // Get public note by share token (NO authentication required)
+// Handles two error cases: invalid link or deleted note
 export const getPublicNoteController = async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -62,6 +111,18 @@ export const getPublicNoteController = async (req, res, next) => {
       data: note
     });
   } catch (error) {
+    if (error.message === "INVALID_LINK") {
+      return res.status(404).json({
+        success: false,
+        message: "Invalid or expired share link"
+      });
+    }
+    if (error.message === "NOTE_DELETED") {
+      return res.status(410).json({
+        success: false,
+        message: "Note was deleted by owner"
+      });
+    }
     next(error);
   }
 };
