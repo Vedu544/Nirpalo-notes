@@ -1,7 +1,7 @@
 import prisma from "../config/db.js";
 import crypto from "crypto";
+import { createActivity } from "./activity.service.js";
 
-// Generate a share link for a note
 export const generateShareLink = async (noteId, userId) => {
   // Verify user owns the note
   const note = await prisma.note.findFirst({
@@ -24,7 +24,7 @@ export const generateShareLink = async (noteId, userId) => {
     // Return existing token instead of creating duplicate
     return {
       token: existingLink.token,
-      shareUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/public/share/${existingLink.token}`
+      shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public/share/${existingLink.token}`
     };
   }
 
@@ -41,15 +41,14 @@ export const generateShareLink = async (noteId, userId) => {
 
   return {
     token: shareLink.token,
-    shareUrl: `${process.env.CLIENT_URL || 'http://localhost:3000'}/public/share/${shareLink.token}`
+    shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public/share/${shareLink.token}`
   };
 };
 
-// Get all users (except current user) - SIMPLE, no exclusion of collaborators
 export const getAllUsersForSharing = async (currentUserId) => {
   return await prisma.user.findMany({
     where: {
-      id: { not: currentUserId } // Only exclude current user
+      id: { not: currentUserId }
     },
     select: {
       id: true,
@@ -62,7 +61,6 @@ export const getAllUsersForSharing = async (currentUserId) => {
   });
 };
 
-// Get public note by share token - with better error handling
 export const getPublicNoteByToken = async (token) => {
   // Find the share link
   const shareLink = await prisma.shareLink.findUnique({
@@ -100,7 +98,6 @@ export const getPublicNoteByToken = async (token) => {
   return shareLink.note;
 };
 
-// Get all notes shared WITH a user (where they are a collaborator)
 export const getSharedNotes = async (userId) => {
   return await prisma.noteCollaborator.findMany({
     where: { userId },
@@ -132,7 +129,6 @@ export const getSharedNotes = async (userId) => {
   });
 };
 
-// Get all collaborators of a specific note
 export const getNoteCollaborators = async (noteId, userId) => {
   // Verify user has access to this note
   const note = await prisma.note.findFirst({
@@ -167,7 +163,6 @@ export const getNoteCollaborators = async (noteId, userId) => {
   });
 };
 
-// Remove a collaborator from a note
 export const removeCollaborator = async (noteId, ownerId, collaboratorUserId) => {
   // Verify ownership
   const note = await prisma.note.findFirst({
@@ -192,7 +187,6 @@ export const removeCollaborator = async (noteId, ownerId, collaboratorUserId) =>
   return result;
 };
 
-// Update collaborator permission (EDITOR <-> VIEWER)
 export const updateCollaboratorPermission = async (
   noteId,
   ownerId,
@@ -241,4 +235,62 @@ export const updateCollaboratorPermission = async (
       }
     }
   });
+};
+
+export const shareNoteService = async ({ noteId, ownerId, sharedWithUserId, permission }) => {
+  const note = await prisma.note.findFirst({
+    where: {
+      id: noteId,
+      ownerId
+    }
+  });
+  if (!note) {
+    throw new Error("Note not found or access denied");
+  }
+
+  // Create or update collaborator
+  const collaborator = await prisma.noteCollaborator.upsert({
+    where: {
+      noteId_userId: {
+        noteId,
+        userId: sharedWithUserId
+      }
+    },
+    update: {
+      permission: permission || "VIEWER"
+    },
+    create: {
+      noteId,
+      userId: sharedWithUserId,
+      permission: permission || "VIEWER"
+    }
+  });
+
+  // Create share link (if it doesn't exist)
+  let shareLink = await prisma.shareLink.findFirst({
+    where: { noteId }
+  });
+
+  if (!shareLink) {
+    const token = crypto.randomBytes(32).toString('hex');
+    shareLink = await prisma.shareLink.create({
+      data: {
+        noteId,
+        token
+      }
+    });
+  }
+
+  // Auto-log the SHARE activity
+  await createActivity({
+    userId: ownerId,
+    noteId,
+    action: "SHARE"
+  });
+
+  return {
+    collaboratorId: collaborator.id,
+    token: shareLink.token,
+    shareUrl: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/public/share/${shareLink.token}`
+  };
 };
