@@ -81,3 +81,7 @@ VITE_SOCKET_URL=http://localhost:5000
 * **Note** → notes created by users
 * **SharedNote** → note sharing between users
 * **Activity** → logs of important actions
+
+## Crdentials for Testing 
+* **email - john@gmail.com && johny@gmail.com 
+* **password - Test123@
