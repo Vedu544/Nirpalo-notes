@@ -20,10 +20,10 @@
     "autoprefixer": "^10.4.13",
     "postcss": "^8.4.21"
   },
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+   "scripts": {
+    "build": "npx vite build",
+    "dev": "npx vite",
+    "preview": "npx vite preview"
   },
   "eslintConfig": {
     "extends": [
